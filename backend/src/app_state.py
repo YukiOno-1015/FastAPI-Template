@@ -1,0 +1,1 @@
+environment_info_static = {}

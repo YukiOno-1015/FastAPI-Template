@@ -1,0 +1,11 @@
+alembic
+asyncpg
+fastapi
+pdoc
+psycopg2
+pydantic
+requests
+slack-bolt
+sqlmodel
+types-python-dateutil
+uvicorn[standard]
