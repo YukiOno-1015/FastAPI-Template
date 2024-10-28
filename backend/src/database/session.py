@@ -4,11 +4,14 @@ from .connection import engine
 # SQLAlchemyのセッション作成
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# DBセッションをリクエストごとに管理
+
 def get_session():
     """
     データベースセッションを取得するジェネレータ関数。
     リクエストごとにセッションを生成し、終了時に閉じる。
+
+    Yields:
+        Session: データベースセッション。
     """
     db = SessionLocal()
     try:

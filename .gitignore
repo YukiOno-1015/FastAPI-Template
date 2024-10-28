@@ -251,6 +251,6 @@ $RECYCLE.BIN/
 
 
 secret.json
-logs/*/*.log
+logs/*/*.log*
 postgresql/*
 .vscode

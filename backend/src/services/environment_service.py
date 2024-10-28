@@ -20,7 +20,7 @@ class EnvironmentService:
         """
         infos = self.db.query(EnvironmentInfo).all()
         if not infos:
-            raise HTTPException(status_code=404, detail="No environment info found")
+            raise HTTPException(status_code=404, detail="Environment info not found in database.")
         return infos
 
     def get_environment_info_as_schema(self) -> list[EnvironmentInfoSchema]:
@@ -34,25 +34,33 @@ class EnvironmentService:
             HTTPException: 環境情報が見つからない場合。
         """
         if not environment_info_static:
-            raise HTTPException(status_code=404, detail="No environment info found")
+            raise HTTPException(status_code=404, detail="No static environment info found.")
 
-        # environment_info_staticをスキーマ形式に変換
-        return [
-            EnvironmentInfoSchema(
-                key_code=info["key_code"],
-                values=info["values"],
-                created_by=info["created_by"],
-                updated_by=info.get("updated_by"),
-                created_at=info["created_at"],
-                updated_at=info.get("updated_at")
-            )
-            for info in environment_info_static.values()
-        ]
+        return [self._convert_to_schema(info) for info in environment_info_static.values()]
+
+    def _convert_to_schema(self, info: dict) -> EnvironmentInfoSchema:
+        """
+        環境情報の辞書をスキーマ形式に変換します。
+
+        Args:
+            info (dict): 環境情報の辞書。
+
+        Returns:
+            EnvironmentInfoSchema: スキーマ形式の環境情報。
+        """
+        return EnvironmentInfoSchema(
+            key_code=info["key_code"],
+            values=info["values"],
+            created_by=info["created_by"],
+            updated_by=info.get("updated_by"),
+            created_at=info["created_at"],
+            updated_at=info.get("updated_at"),
+        )
 
     def get_environment_info_static(self, key_code: str) -> dict:
         """
         静的なenvironment_infoから指定したキーの値を取得する。
-        
+
         Args:
             key_code (str): 取得するキーコード。
 
@@ -64,7 +72,7 @@ class EnvironmentService:
         """
         value = environment_info_static.get(key_code)
         if not value:
-            raise HTTPException(status_code=500, detail="Server Error: Environment info not found")
+            raise HTTPException(status_code=404, detail=f"Environment info not found for key_code: {key_code}")
         return value
 
     def update_environment_info_static(self) -> None:
