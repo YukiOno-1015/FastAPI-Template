@@ -1,12 +1,14 @@
 import logging
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
+from fastapi_pagination import add_pagination
+
+from fastapi_versioning import VersionedFastAPI
 from sqlmodel import SQLModel, Session
 from database.connection import engine
 from database.session import get_session
 from app_state import environment_info_static
 from services.environment_service import EnvironmentService
 from middlewares.cors_config import CORSConfig
-from middlewares.custom_header import CustomHeaderMiddleware
 from utils.routers_manager import include_all_routers
 from utils.middlewares_manager import include_all_middlewares
 
@@ -18,6 +20,9 @@ app = FastAPI()
 CORSConfig(app)
 include_all_middlewares(app)  # ミドルウェアを設定
 include_all_routers(app)  # すべてのルーターをインク
+
+app = add_pagination(app)
+app = VersionedFastAPI(app)
 
 
 def initialize_database() -> None:

@@ -18,9 +18,7 @@ class CustomTimedRotatingFileHandler(TimedRotatingFileHandler):
         utc=False,
         atTime=None,
     ):
-        super().__init__(
-            filename, when, interval, backupCount, encoding, delay, utc, atTime
-        )
+        super().__init__(filename, when, interval, backupCount, encoding, delay, utc, atTime)
 
     def doRollover(self):
         """

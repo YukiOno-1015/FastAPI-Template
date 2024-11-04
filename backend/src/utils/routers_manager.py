@@ -27,9 +27,7 @@ def include_all_routers(app):
             # モジュール名を生成し、ファイルを動的にインポート
             module_name = f"routers.{filename[:-3]}"  # '.py'を除いたモジュール名
             if module_name in included_routers:
-                LOGGER.warning(
-                    f"モジュール {module_name} はすでにインクルードされています。"
-                )
+                LOGGER.warning(f"モジュール {module_name} はすでにインクルードされています。")
                 continue  # すでにインクルードされている場合はスキップ
 
             try:
@@ -38,17 +36,9 @@ def include_all_routers(app):
                 # モジュールに'router'属性があれば、それをアプリにインクルード
                 if hasattr(module, "router"):
                     app.include_router(module.router)
-                    included_routers.add(
-                        module_name
-                    )  # インクルードしたモジュールを追加
-                    LOGGER.info(
-                        f"ルーター {module_name} を正常にインクルードしました。"
-                    )
+                    included_routers.add(module_name)  # インクルードしたモジュールを追加
+                    LOGGER.info(f"ルーター {module_name} を正常にインクルードしました。")
                 else:
-                    LOGGER.warning(
-                        f"モジュール {module_name} に 'router' 属性がありません。"
-                    )
+                    LOGGER.warning(f"モジュール {module_name} に 'router' 属性がありません。")
             except Exception as e:
-                LOGGER.error(
-                    f"モジュール {module_name} のインポート中にエラーが発生しました: {e}"
-                )
+                LOGGER.error(f"モジュール {module_name} のインポート中にエラーが発生しました: {e}")

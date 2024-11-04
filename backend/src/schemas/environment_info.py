@@ -1,11 +1,13 @@
-from pydantic import BaseModel
+from fastapi_camelcase import CamelModel
 from datetime import datetime
 
-class EnvironmentInfoSchema(BaseModel):
+
+class EnvironmentInfoSchema(CamelModel):
     """
     EnvironmentInfoモデルのスキーマ。
     レスポンス用のスキーマとして使用。
     """
+
     key_code: str
     values: str
     created_by: str

@@ -2,9 +2,12 @@ import os
 import logging
 import importlib
 from starlette.middleware.base import BaseHTTPMiddleware
+from asgi_correlation_id import CorrelationIdMiddleware
+from fastapi_profiler import PyInstrumentProfilerMiddleware
 
 # uvicornのロガーを取得
 LOGGER = logging.getLogger("uvicorn")
+
 
 def include_all_middlewares(app):
     """
@@ -20,9 +23,18 @@ def include_all_middlewares(app):
         raise ValueError("app引数はNoneであってはなりません。")
 
     middlewares_dir = os.path.join(os.path.dirname(__file__), "..", "middlewares")
+    app.add_middleware(CorrelationIdMiddleware)
+    # app.add_middleware(
+    #     PyInstrumentProfilerMiddleware,
+    #     server_app=app,
+    #     profiler_output_type="html",
+    #     html_file_name="/var/log/backend/profile.html",
+    # )
+
+    app.add_middleware(PyInstrumentProfilerMiddleware)
 
     # スキップするミドルウェアのリスト
-    skip_middlewares = [ "BaseHTTPMiddleware",  "CORSConfig"]
+    skip_middlewares = ["PyInstrumentProfilerMiddleware", "CorrelationIdMiddleware", "BaseHTTPMiddleware", "CORSConfig"]
 
     for filename in os.listdir(middlewares_dir):
         if filename.endswith(".py") and filename != "__init__.py":

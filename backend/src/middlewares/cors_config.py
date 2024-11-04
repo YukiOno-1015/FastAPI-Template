@@ -2,6 +2,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 
+
 class CORSConfig:
     """
     CORS設定を管理するクラス。
@@ -14,12 +15,14 @@ class CORSConfig:
         allow_headers (list[str]): 許可するヘッダーのリスト。デフォルトはすべてのヘッダーを許可する。
     """
 
-    def __init__(self,
-                 app: FastAPI,
-                 allow_origins: list[str] = None,
-                 allow_credentials: bool = True,
-                 allow_methods: list[str] = None,
-                 allow_headers: list[str] = None):
+    def __init__(
+        self,
+        app: FastAPI,
+        allow_origins: list[str] = None,
+        allow_credentials: bool = True,
+        allow_methods: list[str] = None,
+        allow_headers: list[str] = None,
+    ):
         """
         CORS設定を初期化する。
 

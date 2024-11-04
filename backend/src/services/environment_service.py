@@ -4,6 +4,7 @@ from models.environment_info import EnvironmentInfo
 from schemas.environment_info import EnvironmentInfoSchema
 from app_state import environment_info_static
 
+
 class EnvironmentService:
     def __init__(self, db: Session):
         self.db = db
@@ -71,8 +72,6 @@ class EnvironmentService:
             HTTPException: キーコードに対応する値が見つからない場合。
         """
         value = environment_info_static.get(key_code)
-        if not value:
-            raise HTTPException(status_code=404, detail=f"Environment info not found for key_code: {key_code}")
         return value
 
     def update_environment_info_static(self) -> None:
@@ -81,14 +80,16 @@ class EnvironmentService:
         """
         infos = self.get_environment_info()
         environment_info_static.clear()
-        environment_info_static.update({
-            info.key_code: {
-                "key_code": info.key_code,
-                "values": info.values,
-                "created_by": info.created_by,
-                "updated_by": info.updated_by,
-                "created_at": info.created_at,
-                "updated_at": info.updated_at,
+        environment_info_static.update(
+            {
+                info.key_code: {
+                    "key_code": info.key_code,
+                    "values": info.values,
+                    "created_by": info.created_by,
+                    "updated_by": info.updated_by,
+                    "created_at": info.created_at,
+                    "updated_at": info.updated_at,
+                }
+                for info in infos
             }
-            for info in infos
-        })
+        )

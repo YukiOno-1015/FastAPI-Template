@@ -32,9 +32,12 @@ ENV TERM=xterm
 RUN pip install --upgrade pip setuptools
 
 # 依存関係のコピーとインストール
-COPY ./backend/requirements.txt .
+COPY ./backend/src/pyproject.toml /app/
+COPY ./backend/src/.pre-commit-config.yaml /app/
 
-RUN pip install -r requirements.txt
+# Poetryのインストールと依存関係のインストール
+RUN pip install poetry
+RUN poetry install --no-root
 
 # FastAPIアプリケーションの起動
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-config", "/app/logging_config.yaml"]
+CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-config", "/app/logging_config.yaml"]

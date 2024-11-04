@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   backend:
     build:
@@ -14,7 +12,8 @@ services:
     depends_on:
       - db
     volumes:
-      - ./backend/src:/app
+      - ./backend/src:/app  # srcが必要な場合に使用
+
       - ./logs/backend:/var/log/backend
     networks:
       - internal_network

@@ -29,32 +29,22 @@ class CustomHeaderMiddleware(BaseHTTPMiddleware):
 
         # 環境情報を取得
         try:
-            project_data = self.get_environment_info_static(
-                PROJECT_ID_KEY
-            )
-            version_data = self.get_environment_info_static(
-                VERSION_KEY
-            )
-            secret_data = self.get_environment_info_static(
-                SECRET_KEY
-            )
+            project_data = self.get_environment_info_static(PROJECT_ID_KEY)
+            version_data = self.get_environment_info_static(VERSION_KEY)
+            secret_data = self.get_environment_info_static(SECRET_KEY)
 
             project_id = project_data["values"]
             version = version_data["values"]
             secret_key = secret_data["values"]
         except HTTPException as e:
-            raise HTTPException(
-                status_code=e.status_code, detail=f"環境情報取得エラー: {e.detail}"
-            )
+            raise HTTPException(status_code=e.status_code, detail=f"環境情報取得エラー: {e.detail}")
 
         # X-Signatureを生成
         signature = create_signature(secret_key, project_id, version, timestamp)
 
         # ヘッダーに署名とタイムスタンプを追加
         response.headers["X-Signature"] = signature
-        response.headers["X-Timestamp"] = str(
-            timestamp
-        )  # 現在のUNIXエポックタイムを追加
+        response.headers["X-Timestamp"] = str(timestamp)  # 現在のUNIXエポックタイムを追加
 
         # その他のカスタムヘッダーを追加
         response.headers["X-Source"] = "YourProjectName"

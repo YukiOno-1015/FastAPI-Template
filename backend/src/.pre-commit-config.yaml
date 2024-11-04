@@ -1,0 +1,18 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.4.0  # バージョンを指定
+    hooks:
+      - id: trailing-whitespace  # 末尾の空白を削除
+      - id: end-of-file-fixer    # EOFを修正
+      - id: check-yaml            # YAMLファイルの検証
+      - id: check-added-large-files # 大きなファイルのチェック
+
+  - repo: https://github.com/psf/black
+    rev: main  # Blackの最新バージョンを使用
+    hooks:
+      - id: black  # コードフォーマッター
+
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: main  # Isortの最新バージョンを使用
+    hooks:
+      - id: isort  # インポート順序を整える
