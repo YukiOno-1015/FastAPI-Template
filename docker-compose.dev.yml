@@ -7,16 +7,17 @@ services:
     tty: true
     environment:
       TZ: "Asia/Tokyo"
+      PYTHONPYCACHEPREFIX: "/dev/null"  # __pycache__の生成を無効化
     env_file:
       - .env.dev
     depends_on:
       - db
     volumes:
-      - ./backend/src:/app  # srcが必要な場合に使用
-
-      - ./logs/backend:/var/log/backend
+      - ./backend/src:/app  # ソースコードをマウントして開発を行う
+      - ./logs/backend:/var/log/backend  # バックエンドのログディレクトリ
     networks:
       - internal_network
+    restart: always  # 再起動設定
 
   db:
     image: postgres:16
@@ -25,24 +26,26 @@ services:
       POSTGRES_PASSWORD: dev_password
       POSTGRES_DB: fastapi
     volumes:
-      - ./postgresql:/var/lib/postgresql/data
-      - ./logs/postgresql:/var/log/postgresql
+      - ./postgresql:/var/lib/postgresql/data  # データの永続化
+      - ./logs/postgresql:/var/log/postgresql  # PostgreSQLのログ
     ports:
       - "5432:5432"
     networks:
       - internal_network
+    restart: always  # 再起動設定
 
   nginx:
     image: nginx:latest
     ports:
       - "80:80"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./logs/nginx:/var/log/nginx
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro  # 読み取り専用でマウント
+      - ./logs/nginx:/var/log/nginx  # NGINXのログ
     depends_on:
       - backend
     networks:
       - internal_network
+    restart: always  # 再起動設定
 
 networks:
   internal_network:
