@@ -1,8 +1,9 @@
-from sqlalchemy.orm import Session
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from app_state import environment_info_static
 from models.environment_info import EnvironmentInfo
 from schemas.environment_info import EnvironmentInfoSchema
-from app_state import environment_info_static
 
 
 class EnvironmentService:

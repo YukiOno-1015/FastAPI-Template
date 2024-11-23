@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "FastAPI_Template"  # プロジェクト名を指定
+name = "FastAPI-Templete"  # プロジェクト名を指定
 version = "0.0.1"           # プロジェクトのバージョン
 description = "Your project description here."  # プロジェクトの説明
 authors = ["YUKI ONO <sk4869pw4869@gmail.com>"]      # 作者の情報
 license = "MIT"             # ライセンスを指定
 
 [tool.poetry.dependencies]
-python = "^3.12"            # Pythonのバージョンを3.12に指定
+python = ">=3.12,<3.13"            # Pythonのバージョンを3.12に指定
 alembic = "*"               # Alembic
 asyncpg = "*"               # Asyncpg
 fastapi = {extras = ["all"], version = "*"}  # FastAPI with all extras
@@ -32,6 +32,12 @@ starlette = "^0.41.2"
 fastapi-versioning = "^0.10.0"
 fastapi-plugins = {extras = ["all"], version = "^0.13.1"}
 fastapi-restful = {extras = ["all"], version = "^0.6.0"}
+#gspread = "^6.1.4"
+#google-auth = "^2.36.0"
+#google-auth-oauthlib = "^1.2.1"
+#google-auth-httplib2 = "^0.2.0"
+#google-api-python-client = "^2.151.0"
+setuptools = "^75.5.0"
 
 [tool.poetry.dev-dependencies]
 black = "*"                  # Black（コードフォーマッター）
@@ -41,19 +47,29 @@ mypy = "*"                   # Mypy（型チェックツール）
 pyproject-flake8 = "*"       # Flake8の設定をpyproject.tomlで管理
 pre-commit = "*"             # Pre-commitフックの設定
 
+[tool.poetry.group.dev.dependencies]
+flake8-import-order = "^0.18.2"
+
 [tool.black]
 line-length = 120           # Blackの最大行長を120に指定
 
 [tool.flake8]
 max-line-length = 120       # Flake8の最大行長を120に指定
 ignore = ""                 # 無視するルールを指定（空のまま）
-exclude = ".venv/"          # 除外するパスを指定
+exclude = [".venv/", "alembic"]          # 除外するパスを指定
+import-order-style = "pep8"  # PEP8準拠の順序を使用
+application-import-names =  ["app_state", 'schemas', 'services', 'middlewares', 'models', 'database', 'routers', 'commons', 'utils']  # あなたのプロジェクト名を指定
 
 [tool.isort]
-include_trailing_comma = true # 最後のカンマを含める
-line_length = 120             # Isortの最大行長を120に指定
-multi_line_output = 3         # 複数行出力の形式を指定
-use_parentheses = true        # 括弧を使用するかどうかを指定
+profile = "black"
+line_length = 120
+include_trailing_comma = true
+multi_line_output = 3
+use_parentheses = true
+known_third_party = ["fastapi", "sqlalchemy", "sqlmodel"]
+known_first_party = ["app_state", "schemas", "services", "middlewares", "models", "database", "routers", "commons", "utils"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
 
 [tool.mypy]
 install_types = true         # 型情報を自動的にインストール

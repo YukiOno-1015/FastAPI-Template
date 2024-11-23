@@ -1,9 +1,9 @@
-import os
-import logging
 import gzip
+import os
 import shutil
+from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
-from datetime import datetime, timedelta
+from pathlib import Path
 
 
 class CustomTimedRotatingFileHandler(TimedRotatingFileHandler):
@@ -22,29 +22,39 @@ class CustomTimedRotatingFileHandler(TimedRotatingFileHandler):
 
     def doRollover(self):
         """
-        Override the base class method to compress old log files that are older than 7 days.
+        ログローテーション後に7日以上経過した古いログを圧縮します。
         """
-        super().doRollover()  # Call the base class rollover to rotate files
+        super().doRollover()  # 基底クラスのローテーション処理を呼び出す
 
-        # Compress log files older than 7 days
+        # 古いログファイルを圧縮
         self.compress_old_logs()
 
     def compress_old_logs(self):
-        """Compress logs older than 7 days."""
+        """7日以上経過したログファイルを圧縮します。"""
         now = datetime.now()
-        for filename in os.listdir(os.path.dirname(self.baseFilename)):
-            file_path = os.path.join(os.path.dirname(self.baseFilename), filename)
-            # Check if the file is older than 7 days
-            if not filename.endswith(".log"):  # Ignore non-log files
+        log_dir = Path(self.baseFilename).parent  # pathlibを使用してログディレクトリを取得
+
+        for log_file in log_dir.glob("*.log"):  # 拡張子が.logのファイルを検索
+            if log_file.suffix == ".gz":  # 圧縮済みのファイルはスキップ
                 continue
-            file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
-            if (now - file_mtime).days >= 7:
-                self.compress_log_file(file_path)
+
+            try:
+                # ファイルの最終更新日時を確認
+                file_mtime = datetime.fromtimestamp(log_file.stat().st_mtime)
+                if (now - file_mtime).days >= 7:
+                    self.compress_log_file(log_file)
+            except Exception as e:
+                print(f"ファイル処理エラー: {log_file}: {e}")
 
     def compress_log_file(self, file_path):
-        """Compress a single log file to .gz"""
-        compressed_file = file_path + ".gz"
-        with open(file_path, "rb") as f_in:
-            with gzip.open(compressed_file, "wb") as f_out:
-                shutil.copyfileobj(f_in, f_out)
-        os.remove(file_path)  # Remove the original uncompressed file
+        """1つのログファイルを.gzip形式で圧縮します。"""
+        compressed_file = f"{file_path}.gz"
+        try:
+            print(f"圧縮中: {file_path}")
+            with open(file_path, "rb") as f_in:
+                with gzip.open(compressed_file, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            os.remove(file_path)  # 元の未圧縮ファイルを削除
+            print(f"圧縮完了: {file_path}")
+        except Exception as e:
+            print(f"圧縮失敗: {file_path}: {e}")

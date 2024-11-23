@@ -1,5 +1,6 @@
-from sqlmodel import Field, SQLModel, Column, String, DateTime
 from datetime import datetime
+
+from sqlmodel import Column, DateTime, Field, SQLModel, String
 
 
 class EnvironmentInfo(SQLModel, table=True):

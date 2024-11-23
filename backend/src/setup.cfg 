@@ -1,0 +1,6 @@
+[flake8]
+max-line-length = 120
+ignore =
+exclude = .venv/, alembic
+import-order-style = pep8
+application-import-names = app_state,schemas,services,middlewares,models,database,routers,commons,utils

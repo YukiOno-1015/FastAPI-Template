@@ -1,6 +1,10 @@
-# cors_config.py
-from fastapi.middleware.cors import CORSMiddleware
+import logging
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+# uvicornのロガーを取得
+LOGGER = logging.getLogger("uvicorn")
 
 
 class CORSConfig:
@@ -33,13 +37,19 @@ class CORSConfig:
             allow_methods (list[str]): 許可するHTTPメソッドのリスト。
             allow_headers (list[str]): 許可するヘッダーのリスト。
         """
-        if allow_origins is None:
-            allow_origins = ["*"]  # デフォルト値: すべてのオリジンを許可
-        if allow_methods is None:
-            allow_methods = ["*"]  # デフォルト値: すべてのメソッドを許可
-        if allow_headers is None:
-            allow_headers = ["*"]  # デフォルト値: すべてのヘッダーを許可
+        # デフォルト値の設定
+        allow_origins = allow_origins or ["*"]  # デフォルト: 全オリジン許可
+        allow_methods = allow_methods or ["*"]  # デフォルト: 全メソッド許可
+        allow_headers = allow_headers or ["*"]  # デフォルト: 全ヘッダー許可
 
+        # 設定の確認ログ
+        LOGGER.info(
+            f"CORSConfig initialized with: allow_origins={allow_origins}, "
+            f"allow_credentials={allow_credentials}, allow_methods={allow_methods}, "
+            f"allow_headers={allow_headers}"
+        )
+
+        # CORS ミドルウェアをアプリケーションに追加
         app.add_middleware(
             CORSMiddleware,
             allow_origins=allow_origins,

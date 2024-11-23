@@ -1,27 +1,28 @@
 version: 1
 disable_existing_loggers: False
+
 formatters:
   standard:
     format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  concise:
+    format: "%(levelname)s - %(message)s"
 
 handlers:
   console:
     class: logging.StreamHandler
-    formatter: standard
+    formatter: concise
 
-  # カスタムハンドラーを利用して server.log を管理
   timed_server_file:
     class: utils.custom_log_handler.CustomTimedRotatingFileHandler
     formatter: standard
     filename: /var/log/backend/server.log
-    when: 'midnight'  # 日付が変わるタイミングでローテーション
-    interval: 1       # 1日ごとに新しいファイルを作成
-    backupCount: 7    # 古いログファイルを7日分保持
-    encoding: utf-8   # 文字コードの設定
+    when: 'midnight'
+    interval: 1
+    backupCount: 7
+    encoding: utf-8
     delay: true
-    level: INFO       # サーバーログのレベルをINFOに設定
+    level: INFO
 
-  # error.log も同様の設定
   timed_error_file:
     class: utils.custom_log_handler.CustomTimedRotatingFileHandler
     formatter: standard
@@ -31,31 +32,35 @@ handlers:
     backupCount: 7
     encoding: utf-8
     delay: true
-    level: ERROR      # エラーログのレベルをERRORに設定
+    level: ERROR
 
-  # debug.log を追加
   timed_debug_file:
     class: utils.custom_log_handler.CustomTimedRotatingFileHandler
     formatter: standard
     filename: /var/log/backend/debug.log
-    when: 'midnight'  # 日付が変わるタイミングでローテーション
-    interval: 1       # 1日ごとに新しいファイルを作成
-    backupCount: 7    # 古いログファイルを7日分保持
-    encoding: utf-8   # 文字コードの設定
+    when: 'midnight'
+    interval: 1
+    backupCount: 7
+    encoding: utf-8
     delay: true
-    level: DEBUG      # デバッグログのレベルをDEBUGに設定
+    level: DEBUG
 
 loggers:
   uvicorn:
-    handlers: [console, timed_server_file, timed_error_file, timed_debug_file]
-    level: INFO
-    propagate: no
+    handlers: [console, timed_server_file, timed_debug_file]
+    level: DEBUG
+    propagate: False
+
+  uvicorn.access:
+    handlers: [console, timed_server_file, timed_debug_file]
+    level: DEBUG
+    propagate: False
 
   uvicorn.error:
-    handlers: [console, timed_server_file, timed_error_file]
+    handlers: [console, timed_error_file, timed_debug_file]
     level: ERROR
-    propagate: no
+    propagate: False
 
 root:
-  handlers: [console, timed_server_file, timed_error_file, timed_debug_file]
-  level: DEBUG      # ルートロガーのレベルをDEBUGに設定
+  handlers: [console, timed_debug_file]
+  level: DEBUG

@@ -1,13 +1,12 @@
-import time
-import logging
-import hmac
-import hashlib
 import base64
-from requests.exceptions import HTTPError
-from fastapi import HTTPException
+import hashlib
+import hmac
+import logging
+import time
 from collections.abc import Callable
-from services.environment_service import EnvironmentService
 
+from fastapi import HTTPException
+from requests.exceptions import HTTPError
 
 # uvicornのロガーを取得
 LOGGER = logging.getLogger("uvicorn")
@@ -27,9 +26,7 @@ def check_value(value: str | None) -> str:
         HTTPException: 値がNoneまたは空文字の場合に404エラーが発生します。
     """
     if value is None or value == "":
-        raise HTTPException(
-            status_code=404, detail="提供された値はNoneまたは空文字です。"
-        )
+        raise HTTPException(status_code=404, detail="提供された値はNoneまたは空文字です。")
     return value
 
 
@@ -77,23 +74,36 @@ def retry_request(
     raise HTTPException(status_code=503, detail="最大再試行回数に達しました")
 
 
-def create_signature(
-    secret_key: str, project_id: str, version: str, timestamp: int
-) -> str:
+def create_signature(secret_key: str, project_id: str, version: str, timestamp: int, text: str) -> str:
     """
-    データのハッシュ署名を生成します。
+    データのハッシュ署名を生成し、`v0=`形式で返します。
 
     Args:
         secret_key (str): 署名を生成するための秘密鍵。
         project_id (str): プロジェクトの一意の識別子。
         version (str): APIまたはアプリケーションのバージョン。
         timestamp (int): タイムスタンプ。
+        text (str): 追加のデータ。
 
     Returns:
-        str: データのハッシュ署名（Base64エンコード）。
+        str: `v0=`プレフィックスが付いたデータのハッシュ署名（16進数エンコード）。
     """
-    data_to_sign = f"{project_id}:{version}:{timestamp}"  # データを組み合わせ
-    signature = hmac.new(
-        key=secret_key.encode(), msg=data_to_sign.encode(), digestmod=hashlib.sha256
-    )
-    return base64.b64encode(signature.digest()).decode()
+    data_to_sign = f"{project_id}:{version}:{timestamp}:{text}"  # データを組み合わせ
+    signature = hmac.new(key=secret_key.encode(), msg=data_to_sign.encode(), digestmod=hashlib.sha256)
+    # 16進数エンコード後に "v0=" を追加して返す
+    return f"v0={signature.hexdigest()}"
+
+
+def encode_to_base64(text: str) -> str:
+    """
+    指定された文字列をBase64エンコードします。
+
+    Args:
+        text (str): エンコードする文字列。
+
+    Returns:
+        str: Base64エンコードされた文字列。
+    """
+    # 文字列をバイトにエンコードし、Base64エンコードを実行
+    base64_encoded = base64.b64encode(text.encode("utf-8")).decode("utf-8")
+    return base64_encoded

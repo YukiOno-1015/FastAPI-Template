@@ -14,6 +14,7 @@ RUN echo "deb http://deb.debian.org/debian bookworm main" > /etc/apt/sources.lis
     apt-get update && \
     apt-get -y install \
     less \
+    llvm \
     locales \
     vim && \
     localedef -f UTF-8 -i ja_JP ja_JP.UTF-8 && \
@@ -27,6 +28,7 @@ ENV LANGUAGE=ja_JP:ja
 ENV LC_ALL=ja_JP.UTF-8
 ENV TZ=Asia/Tokyo
 ENV TERM=xterm
+ENV LLVM_CONFIG=/usr/bin/llvm-config
 
 # pipとsetuptoolsのアップグレード
 RUN pip install --upgrade pip setuptools
@@ -40,4 +42,4 @@ RUN pip install poetry
 RUN poetry install --no-root
 
 # FastAPIアプリケーションの起動
-CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--log-config", "/app/logging_config.yaml"]
+CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--proxy-headers", "--log-config", "/app/logging_config.yaml"]

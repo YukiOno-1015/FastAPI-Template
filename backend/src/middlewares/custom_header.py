@@ -1,16 +1,15 @@
-from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import Request, Response, HTTPException
-from utils.util import create_signature
-from app_state import environment_info_static
-import time
 import logging
+import time
+
+from fastapi import HTTPException, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from app_state import environment_info_static
+from commons.environment_master_key import EnvironmentMasterKey
+from utils.util import create_signature, encode_to_base64
 
 # uvicornのロガーを取得
 LOGGER = logging.getLogger("uvicorn")
-# 定数でキーコードを管理
-PROJECT_ID_KEY = "10000001"
-VERSION_KEY = "10000002"
-SECRET_KEY = "10000003"
 
 
 class CustomHeaderMiddleware(BaseHTTPMiddleware):
@@ -19,41 +18,48 @@ class CustomHeaderMiddleware(BaseHTTPMiddleware):
     """
 
     def __init__(self, app):
+        LOGGER.info("CustomHeaderMiddleware 初期化")
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next):
-        # リクエストを処理
-        response: Response = await call_next(request)
+        LOGGER.info("CustomHeaderMiddleware dispatch開始")
         # タイムスタンプを生成
         timestamp = int(time.time())
 
         # 環境情報を取得
         try:
-            project_data = self.get_environment_info_static(PROJECT_ID_KEY)
-            version_data = self.get_environment_info_static(VERSION_KEY)
-            secret_data = self.get_environment_info_static(SECRET_KEY)
-
-            project_id = project_data["values"]
-            version = version_data["values"]
-            secret_key = secret_data["values"]
+            project_id = self.__get_environment_info_static(EnvironmentMasterKey.PROJECT_ID.value)["values"]
+            version = self.__get_environment_info_static(EnvironmentMasterKey.VERSION.value)["values"]
+            secret_key = self.__get_environment_info_static(EnvironmentMasterKey.SECRET.value)["values"]
         except HTTPException as e:
             raise HTTPException(status_code=e.status_code, detail=f"環境情報取得エラー: {e.detail}")
 
+        # リクエストを処理し、レスポンスを取得
+        response: Response = await call_next(request)
+
+        # レスポンスボディ全体を非同期に読み込む
+        body = b""
+        async for chunk in response.body_iterator:
+            body += chunk
+
         # X-Signatureを生成
-        signature = create_signature(secret_key, project_id, version, timestamp)
+        signature = create_signature(secret_key, project_id, version, timestamp, body.decode("utf-8"))
 
-        # ヘッダーに署名とタイムスタンプを追加
+        # カスタムヘッダーを追加
         response.headers["X-Signature"] = signature
-        response.headers["X-Timestamp"] = str(timestamp)  # 現在のUNIXエポックタイムを追加
+        response.headers["X-Timestamp"] = str(timestamp)
+        response.headers["X-Project-ID"] = encode_to_base64(project_id)
+        response.headers["X-Version"] = encode_to_base64(version)
 
-        # その他のカスタムヘッダーを追加
-        response.headers["X-Source"] = "YourProjectName"
-        response.headers["X-Project-ID"] = project_id
-        response.headers["X-Version"] = version
+        # レスポンスボディを再設定
+        async def new_body_iterator():
+            yield body
+
+        response.body_iterator = new_body_iterator()
 
         return response
 
-    def get_environment_info_static(self, key_code: str) -> dict:
+    def __get_environment_info_static(self, key_code: str) -> dict:
         """
         静的なenvironment_infoから指定したキーの値を取得する。
 
