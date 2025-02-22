@@ -673,3 +673,7 @@ secret.json
 logs/*/*.log*
 postgresql/*
 .vscode
+
+.env.prod
+
+firebase_service_account.json
