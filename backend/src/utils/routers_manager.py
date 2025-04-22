@@ -1,60 +1,67 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+ルーター自動登録モジュール
+- DDD 構成または単一 src ディレクトリ配下をスキャン
+- subpkg/router.py を持つ各ディレクトリを自動で FastAPI に登録
+"""
 import importlib
 import logging
 import os
+import pkgutil
+from typing import Optional, Set
 
 from fastapi import FastAPI
 
-# ロガーを設定
-LOGGER = logging.getLogger("uvicorn")
+# Uvicorn 用ロガー取得
+LOGGER = logging.getLogger("uvicorn.routers_manager")
 
-# 除外するファイルのリスト
-EXCLUDED_FILES = ["__init__.py", "protocol.py"]
+# 除外するディレクトリ一覧
+EXCLUDED_DIRS: Set[str] = {"__pycache__", "utils", "config", "core", "middlewares", "schemas", "models"}
 
 
-def include_all_routers(app: FastAPI, routers_dir: str = "routers"):
+def include_all_routers(app: FastAPI, root_dir: str = "./routers", root_pkg: Optional[str] = None) -> None:
     """
-    指定されたディレクトリ内のすべてのルーターをFastAPIアプリケーションにインクルードします。
-    一度インクルードされたルーターは再度インクルードしません。
+    指定ディレクトリを走査し、router.py を含むサブパッケージを FastAPI に登録します。
 
     Args:
-        app (FastAPI): FastAPIアプリケーションインスタンス。
-        routers_dir (str): ルーターが含まれるディレクトリ名（デフォルト: "routers"）。
-
-    Raises:
-        FileNotFoundError: 指定されたディレクトリが存在しない場合。
+        app (FastAPI): FastAPI アプリケーションインスタンス
+        root_dir (str): ルーター配置ディレクトリのパス (ファイルシステム上)
+        root_pkg (Optional[str]): import 時のパッケージプレフィックス (例: "app"), None ならプレフィックスなし
     """
-    # インクルード済みのルーターを追跡するセット
-    included_routers = set()
+    pkg_path = os.path.abspath(root_dir)
+    if not os.path.isdir(pkg_path):
+        LOGGER.error(f"ルーター検索ディレクトリが存在しません: {pkg_path}")
+        return
 
-    # ルーターのディレクトリパスを取得
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    routers_path = os.path.join(base_dir, "..", routers_dir)
+    # ディレクトリ直下のサブディレクトリを走査
+    for finder, module_name, is_pkg in pkgutil.iter_modules([pkg_path]):
+        if not is_pkg or module_name in EXCLUDED_DIRS:
+            continue
 
-    # ディレクトリが存在しない場合は例外をスロー
-    if not os.path.isdir(routers_path):
-        raise FileNotFoundError(f"指定されたルーターのディレクトリが存在しません: {routers_path}")
+        module_path = os.path.join(pkg_path, module_name)
+        router_file = os.path.join(module_path, "router.py")
+        if not os.path.isfile(router_file):
+            LOGGER.debug(f"{module_name}/router.py が存在しません。スキップ。")
+            continue
 
-    # ルーターのファイルを探索
-    for filename in os.listdir(routers_path):
-        # 除外リストに含まれないPythonファイルを対象とする
-        if filename.endswith(".py") and filename not in EXCLUDED_FILES:
-            module_name = f"{routers_dir}.{filename[:-3]}"  # '.py' を除いたモジュール名
+        # import 名の組み立て
+        if root_pkg:
+            import_name = f"{root_pkg}.{module_name}.router"
+        else:
+            import_name = f"{module_name}.router"
 
-            # モジュールがすでにインクルードされている場合はスキップ
-            if module_name in included_routers:
-                LOGGER.warning(f"モジュール {module_name} はすでにインクルードされています。")
-                continue
+        LOGGER.debug(import_name)
+        try:
+            mod = importlib.import_module(import_name)
+        except Exception as e:
+            LOGGER.error(f"{import_name} のインポートエラー: {e}", exc_info=True)
+            continue
 
-            try:
-                # モジュールを動的にインポート
-                module = importlib.import_module(module_name)
-
-                # 'router' 属性が存在する場合はアプリにインクルード
-                if hasattr(module, "router"):
-                    app.include_router(module.router)
-                    included_routers.add(module_name)  # インクルード済みに追加
-                    LOGGER.info(f"ルーター {module_name} を正常にインクルードしました。")
-                else:
-                    LOGGER.warning(f"モジュール {module_name} に 'router' 属性がありません。スキップします。")
-            except Exception as e:
-                LOGGER.error(f"モジュール {module_name} のインポート中にエラーが発生しました: {e}")
+        # router 属性を持っていれば登録
+        if hasattr(mod, "router"):
+            app.include_router(mod.router)
+            LOGGER.info(f"ルーター登録: {import_name}")
+        else:
+            LOGGER.warning(f"{import_name} に router 属性がありません。登録をスキップ。")

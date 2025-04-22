@@ -1,45 +1,77 @@
-# ベースイメージにPython 3.12を指定
-FROM python:3.12
+# syntax=docker/dockerfile:1
+# -*- coding: utf-8 -*-
+# ----------------------------------------
+# FastAPI アプリケーション用 Dockerfile (マルチステージ構成)
+# - Python 3.12 ベース
+# - 日本語ロケール対応
+# - Poetry 依存管理
+# - ビルドとランタイムを分離
+# ----------------------------------------
 
-# ルートユーザーで操作
-USER root
+# 1. Builder ステージ: 依存関係のインストール
+FROM python:3.12 AS builder
 
-# ワークディレクトリの設定
-WORKDIR /app
+# 環境変数・ロケール設定
+ENV LANG=ja_JP.UTF-8 \
+    LANGUAGE=ja_JP:ja \
+    LC_ALL=ja_JP.UTF-8 \
+    TZ=Asia/Tokyo \
+    PYTHONUNBUFFERED=1
 
-# Debianリポジトリの設定と必要なパッケージのインストール
-RUN echo "deb http://deb.debian.org/debian bookworm main" > /etc/apt/sources.list && \
-    echo "deb http://deb.debian.org/debian bookworm-updates main" >> /etc/apt/sources.list && \
-    echo "deb http://deb.debian.org/debian-security bookworm-security main" >> /etc/apt/sources.list && \
-    apt-get update && \
-    apt-get -y install \
-    less \
-    llvm \
-    locales \
-    vim && \
+# ビルドに必要なパッケージとロケール生成
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      libpq-dev \
+      curl \
+      locales && \
+    # 日本語ロケールを生成
     localedef -f UTF-8 -i ja_JP ja_JP.UTF-8 && \
-    mkdir -p /var/log/backend && \
-    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 環境変数の設定 (日本語対応)
-ENV LANG=ja_JP.UTF-8
-ENV LANGUAGE=ja_JP:ja
-ENV LC_ALL=ja_JP.UTF-8
-ENV TZ=Asia/Tokyo
-ENV TERM=xterm
-ENV LLVM_CONFIG=/usr/bin/llvm-config
+WORKDIR /app
 
-# pipとsetuptoolsのアップグレード
-RUN pip install --upgrade pip setuptools
+# Poetry インストールと依存解決
+COPY src/pyproject.toml src/poetry.lock /app/
+RUN pip install --upgrade pip setuptools poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-root --without dev --no-interaction --no-ansi
 
-# 依存関係のコピーとインストール
-COPY ./backend/src/pyproject.toml /app/
-COPY ./backend/src/.pre-commit-config.yaml /app/
+# アプリケーションコードをコピー
+COPY src/ /app/
 
-# Poetryのインストールと依存関係のインストール
-RUN pip install poetry
-RUN poetry install --no-root
+# 2. Runtime ステージ: 軽量実行環境
+FROM python:3.12
 
-# FastAPIアプリケーションの起動
-CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--proxy-headers", "--log-config", "/app/logging_config.yaml"]
+# 環境変数・ロケール設定
+ENV LANG=ja_JP.UTF-8 \
+    LANGUAGE=ja_JP:ja \
+    LC_ALL=ja_JP.UTF-8 \
+    TZ=Asia/Tokyo \
+    PYTHONUNBUFFERED=1
+
+# ランタイムに必要なパッケージとロケール生成
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      locales \
+      libpq5 \
+      less \
+      iputils-ping && \
+    localedef -f UTF-8 -i ja_JP ja_JP.UTF-8 && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Builder からビルド成果物と依存パッケージをコピー
+COPY --from=builder /app /app
+COPY --from=builder /usr/local /usr/local
+
+# Poetry のキャッシュ設定 (仮想環境を作成しない)
+ENV POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_CACHE_DIR=/app/.cache/pypoetry
+
+# ポート公開
+EXPOSE 8000
+
+# ENTRYPOINT: 起動時にマイグレーション実行→アプリ起動
+ENTRYPOINT ["sh", "-c", "poetry run alembic upgrade head && poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --log-config /app/logging_config.yaml"]

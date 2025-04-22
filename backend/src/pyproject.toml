@@ -39,7 +39,7 @@ fastapi-restful = {extras = ["all"], version = "^0.6.0"}
 #google-api-python-client = "^2.151.0"
 setuptools = "^75.5.0"
 firebase-admin = "^6.6.0"
-
+netifaces ="*"
 [tool.poetry.dev-dependencies]
 black = "*"                  # Black（コードフォーマッター）
 flake8 = "*"                 # Flake8（スタイルチェッカー）

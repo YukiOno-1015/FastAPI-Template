@@ -1,59 +1,60 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+CORS ミドルウェア設定モジュール
+
+環境変数:
+  CORS_ALLOW_ORIGINS     許可するオリジン (カンマ区切り、デフォルト: "*")
+  CORS_ALLOW_METHODS     許可する HTTP メソッド (カンマ区切り、デフォルト: "*")
+  CORS_ALLOW_HEADERS     許可するヘッダー (カンマ区切り、デフォルト: "*")
+  CORS_ALLOW_CREDENTIALS クッキー等の送信を許可 (true/false、デフォルト: "true")
+"""
+
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# uvicornのロガーを取得
-LOGGER = logging.getLogger("uvicorn")
+# Uvicorn 用ロガーを取得
+LOGGER = logging.getLogger("uvicorn.middleware.cors")
 
 
 class CORSConfig:
     """
-    CORS設定を管理するクラス。
+    FastAPI アプリケーションに CORS ミドルウェアを追加するクラス。
 
-    Attributes:
-        app (FastAPI): FastAPIアプリケーションインスタンス。
-        allow_origins (list[str]): 許可するオリジンのリスト。デフォルトはすべてのオリジンを許可する。
-        allow_credentials (bool): クッキーや認証情報の送信を許可するかどうか。デフォルトはTrue。
-        allow_methods (list[str]): 許可するHTTPメソッドのリスト。デフォルトはすべてのメソッドを許可する。
-        allow_headers (list[str]): 許可するヘッダーのリスト。デフォルトはすべてのヘッダーを許可する。
+    コンストラクタ実行時に以下の環境変数を読み込み、設定を適用します。
+      - CORS_ALLOW_ORIGINS
+      - CORS_ALLOW_METHODS
+      - CORS_ALLOW_HEADERS
+      - CORS_ALLOW_CREDENTIALS
     """
 
-    def __init__(
-        self,
-        app: FastAPI,
-        allow_origins: list[str] = None,
-        allow_credentials: bool = True,
-        allow_methods: list[str] = None,
-        allow_headers: list[str] = None,
-    ):
-        """
-        CORS設定を初期化する。
+    def __init__(self, app: FastAPI):
+        # 環境変数から設定値を取得（デフォルトは全許可）
+        origins = os.getenv("CORS_ALLOW_ORIGINS", "*")
+        methods = os.getenv("CORS_ALLOW_METHODS", "*")
+        headers = os.getenv("CORS_ALLOW_HEADERS", "*")
+        credentials = os.getenv("CORS_ALLOW_CREDENTIALS", "true").lower()
 
-        Args:
-            app (FastAPI): FastAPIアプリケーションインスタンス。
-            allow_origins (list[str]): 許可するオリジンのリスト。
-            allow_credentials (bool): クッキーや認証情報の送信を許可するかどうか。
-            allow_methods (list[str]): 許可するHTTPメソッドのリスト。
-            allow_headers (list[str]): 許可するヘッダーのリスト。
-        """
-        # デフォルト値の設定
-        allow_origins = allow_origins or ["*"]  # デフォルト: 全オリジン許可
-        allow_methods = allow_methods or ["*"]  # デフォルト: 全メソッド許可
-        allow_headers = allow_headers or ["*"]  # デフォルト: 全ヘッダー許可
+        allow_origins = origins.split(",") if origins != "*" else ["*"]
+        allow_methods = methods.split(",") if methods != "*" else ["*"]
+        allow_headers = headers.split(",") if headers != "*" else ["*"]
+        allow_credentials = credentials == "true"
 
-        # 設定の確認ログ
         LOGGER.info(
-            f"CORSConfig initialized with: allow_origins={allow_origins}, "
-            f"allow_credentials={allow_credentials}, allow_methods={allow_methods}, "
-            f"allow_headers={allow_headers}"
+            "[CORSConfig] 設定を読み込み: "
+            f"origins={allow_origins}, methods={allow_methods}, "
+            f"headers={allow_headers}, credentials={allow_credentials}"
         )
 
-        # CORS ミドルウェアをアプリケーションに追加
+        # ミドルウェアの追加
         app.add_middleware(
             CORSMiddleware,
             allow_origins=allow_origins,
-            allow_credentials=allow_credentials,
             allow_methods=allow_methods,
             allow_headers=allow_headers,
+            allow_credentials=allow_credentials,
         )

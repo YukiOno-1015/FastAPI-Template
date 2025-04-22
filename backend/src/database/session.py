@@ -1,21 +1,37 @@
-from sqlalchemy.orm import sessionmaker
+"""
+データベースセッション管理モジュール
+- SQLAlchemy エンジンからセッションを生成
+- 依存注入可能なジェネレータ関数を提供
+"""
+
+import logging
+from typing import Generator
+
+from sqlalchemy.orm import Session, sessionmaker
 
 from .connection import engine
 
-# SQLAlchemyのセッション作成
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Uvicornロガーを使用
+LOGGER = logging.getLogger("uvicorn.database")
+
+# セッションファクトリの生成
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)  # SQLAlchemy 2.0 スタイル
 
 
-def get_session():
+def get_session() -> Generator[Session, None, None]:
     """
-    データベースセッションを取得するジェネレータ関数。
-    リクエストごとにセッションを生成し、終了時に閉じる。
+    データベースセッションを生成し、リクエスト終了後にクローズします。
 
     Yields:
-        Session: データベースセッション。
+        Session: SQLAlchemy セッションインスタンス
     """
-    db = SessionLocal()
+    session: Session = SessionLocal()
     try:
-        yield db
+        yield session
+    except Exception as exc:
+        LOGGER.error(f"[DB] セッション使用中にエラーが発生しました: {exc}", exc_info=True)
+        session.rollback()
+        raise
     finally:
-        db.close()
+        session.close()
+        LOGGER.debug("[DB] セッションをクローズしました")

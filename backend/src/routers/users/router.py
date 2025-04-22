@@ -1,14 +1,18 @@
 # ローカルモジュール（例: プロジェクト内のモジュール）
-from routers.protocol import (
-    LOGGER,
+import logging
+
+from utils.firebase_auth import verify_firebase_token
+from utils.protocol import (
     Depends,
     create_router,
     version,
 )
-from utils.firebase_auth import verify_firebase_token
 
 # ルーター設定（共通関数を利用）
 router = create_router(prefix="/users", tags=["users"])
+
+# Uvicorn 用ロガー取得
+LOGGER = logging.getLogger("uvicorn.routers")
 
 
 @router.post("/")

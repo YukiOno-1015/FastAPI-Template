@@ -1,96 +1,86 @@
+"""
+EnvironmentService: ビジネスロジックとキャッシュ管理を担当。
+リポジトリを利用してDBアクセスし、静的キャッシュ(environment_info_static)を更新・参照します。
+"""
+
+import logging
+from typing import Any, Dict, List
+
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
 
 from app_state import environment_info_static
-from models.environment_info import EnvironmentInfo
+from repositories.environment_repository import EnvironmentRepository
 from schemas.environment_info import EnvironmentInfoSchema
+from utils.protocol import get_environment_value, handle_exception
+
+# Uvicornの標準ロガーを取得
+LOGGER = logging.getLogger("uvicorn")
 
 
 class EnvironmentService:
-    def __init__(self, db: Session):
-        self.db = db
+    """
+    環境情報に関するビジネスサービス。
+    """
 
-    def get_environment_info(self) -> list[EnvironmentInfo]:
+    def __init__(self, repository: EnvironmentRepository):
         """
-        DBのEnvironmentInfo情報を取得する。
+        Args:
+            repository (EnvironmentRepository): DBリポジトリ
+        """
+        self.repository = repository
+
+    def get_all(self) -> List[EnvironmentInfoSchema]:
+        """
+        DBから全件取得し、スキーマ変換して返却します。
 
         Returns:
-            list[EnvironmentInfo]: 環境情報のリスト。
+            List[EnvironmentInfoSchema]: 環境情報リスト
 
         Raises:
-            HTTPException: 環境情報が見つからない場合。
+            HTTPException: データが0件の場合
         """
-        infos = self.db.query(EnvironmentInfo).all()
+        infos = self.repository.fetch_all()
         if not infos:
-            raise HTTPException(status_code=404, detail="Environment info not found in database.")
-        return infos
+            LOGGER.warning("[Service] 環境情報がDBにありません")
+            # protocol.handle_exception を利用して例外を統一
+            handle_exception(
+                message="環境情報が存在しません。",
+                exception=HTTPException(status_code=404, detail="環境情報が見つかりません。"),
+            )
+        # ORM → Pydantic スキーマ変換
+        result = [EnvironmentInfoSchema.from_orm(info) for info in infos]
+        LOGGER.info(f"[Service] {len(result)}件の情報を返却")
+        return result
 
-    def get_environment_info_as_schema(self) -> list[EnvironmentInfoSchema]:
+    def refresh_cache(self) -> None:
         """
-        静的なenvironment_info_static情報をスキーマ形式で取得する。
-
-        Returns:
-            list[EnvironmentInfoSchema]: 環境情報のリスト（スキーマ形式）。
-
-        Raises:
-            HTTPException: 環境情報が見つからない場合。
+        DBから全件取得し、静的キャッシュを更新します。
         """
-        if not environment_info_static:
-            raise HTTPException(status_code=404, detail="No static environment info found.")
-
-        return [self._convert_to_schema(info) for info in environment_info_static.values()]
-
-    def _convert_to_schema(self, info: dict) -> EnvironmentInfoSchema:
-        """
-        環境情報の辞書をスキーマ形式に変換します。
-
-        Args:
-            info (dict): 環境情報の辞書。
-
-        Returns:
-            EnvironmentInfoSchema: スキーマ形式の環境情報。
-        """
-        return EnvironmentInfoSchema(
-            key_code=info["key_code"],
-            values=info["values"],
-            created_by=info["created_by"],
-            updated_by=info.get("updated_by"),
-            created_at=info["created_at"],
-            updated_at=info.get("updated_at"),
-        )
-
-    def get_environment_info_static(self, key_code: str) -> dict:
-        """
-        静的なenvironment_infoから指定したキーの値を取得する。
-
-        Args:
-            key_code (str): 取得するキーコード。
-
-        Returns:
-            dict: 対応する環境情報の辞書。
-
-        Raises:
-            HTTPException: キーコードに対応する値が見つからない場合。
-        """
-        value = environment_info_static.get(key_code)
-        return value
-
-    def update_environment_info_static(self) -> None:
-        """
-        データベースからEnvironmentInfoを取得し、静的なenvironment_info_staticを更新する。
-        """
-        infos = self.get_environment_info()
+        infos = self.repository.fetch_all()
         environment_info_static.clear()
-        environment_info_static.update(
-            {
-                info.key_code: {
-                    "key_code": info.key_code,
-                    "values": info.values,
-                    "created_by": info.created_by,
-                    "updated_by": info.updated_by,
-                    "created_at": info.created_at,
-                    "updated_at": info.updated_at,
-                }
-                for info in infos
+        for info in infos:
+            environment_info_static[info.key_code] = {
+                "key_code": info.key_code,
+                "values": info.values,
+                "created_by": info.created_by,
+                "updated_by": info.updated_by,
+                "created_at": info.created_at,
+                "updated_at": info.updated_at,
             }
-        )
+        LOGGER.info(f"[Service] キャッシュを{len(infos)}件更新しました")
+
+    def get_value(self, key_code: str) -> str:
+        """
+        静的キャッシュから指定キーの値を取得します。
+
+        Args:
+            key_code (str): キーコード
+
+        Returns:
+            str: 該当する環境値
+
+        Raises:
+            HTTPException: キャッシュにキーがない場合
+        """
+        # protocol.get_environment_value を利用
+        return get_environment_value(key_code)

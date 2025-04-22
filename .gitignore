@@ -673,7 +673,7 @@ secret.json
 logs/*/*.log*
 postgresql/*
 .vscode
-
+postgresql/
 .env.prod
 
 firebase_service_account.json
