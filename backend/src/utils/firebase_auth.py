@@ -30,7 +30,7 @@ def _initialize_firebase_app():
     if FIREBASE_APP is not None:
         return FIREBASE_APP
 
-    sa_path = os.getenv("FIREBASE_SERVICE_ACCOUNT", "./utils/firebase_service_account.json")
+    sa_path = "./utils/firebase_service_account.json"
     if not os.path.isfile(sa_path):
         LOGGER.error(f"Firebase service account file not found: {sa_path}")
         raise RuntimeError("Firebase service account file is missing.")
