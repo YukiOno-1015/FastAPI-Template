@@ -41,6 +41,8 @@ setuptools = "^75.5.0"
 firebase-admin = "^6.6.0"
 netifaces ="*"
 websockets = "^15.0.1"
+h11 = ">=0.15.0"
+
 [tool.poetry.dev-dependencies]
 black = "*"                  # Black（コードフォーマッター）
 flake8 = "*"                 # Flake8（スタイルチェッカー）
@@ -50,6 +52,7 @@ pyproject-flake8 = "*"       # Flake8の設定をpyproject.tomlで管理
 pre-commit = "*"             # Pre-commitフックの設定
 pytest = "^7.0"             # pytest 本体
 pytest-asyncio = "^0.21"     # async テストサポート
+
 [tool.poetry.group.dev.dependencies]
 flake8-import-order = "^0.18.2"
 
