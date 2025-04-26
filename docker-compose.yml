@@ -1,77 +1,89 @@
 # Docker Compose (v2) 設定ファイル
-# - version: の指定は不要 (v2 以降では無視されるため削除)
-# - ネットワーク名は環境変数 NETWORK_NAME で一括管理
+# - version: は不要なので削除
+# - 環境変数はルートの .env を env_file で一括読み込み
+# - 単一のデフォルトネットワークを使用
 
 services:
   backend:
-    # ビルド設定: backend/Dockerfile を使用
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: myapp_backend    # コンテナ名
-    working_dir: /app                # 作業ディレクトリ
-    tty: true                        # TTY 有効化
+    container_name: myapp_backend
+    # FastAPI は 0.0.0.0:8000 でリッスン
+    ports:
+      - "${BACKEND_PORT}:8000"         # ホスト:コンテナ
     env_file:
-      - .env                         # ルートの .env を読み込む
+      - .env                           # ルートの .env を読み込む
     environment:
-      - TZ=${TZ}                     # タイムゾーン (例: Asia/Tokyo)
+      - TZ=${TZ}
       - PYTHONPYCACHEPREFIX=/dev/null  # __pycache__ 無効化
     volumes:
-      - ./backend/src:/app           # ソースをマウント
-      - ./logs/backend:/var/log/backend  # ログ出力先
+      - ./backend/src:/app             # ソースマウント (開発用)
+      - ./logs/backend:/var/log/backend
     depends_on:
-      - db                           # DB 起動後に起動
+      db:
+        condition: service_healthy     # DB がヘルシーになるまで待機
     networks:
-      - default                      # デフォルトネットワークを使用
-    restart: always                  # 常に再起動
+      - default
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/latest/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   db:
-    image: postgres:16               # PostgreSQL 16
-    container_name: myapp_postgres   # コンテナ名
-    restart: always                  # 再起動ポリシー
+    image: postgres:16
+    container_name: myapp_postgres
     env_file:
-      - .env                         # .env から環境変数を読み込む
+      - .env
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}     # DB 名
-      - POSTGRES_USER=${POSTGRES_USER} # ユーザー名
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD} # パスワード
-      - TZ=${TZ}                       # タイムゾーン
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - TZ=${TZ}
     ports:
-      - "${POSTGRES_PORT}:5432"      # ホスト:コンテナ ポートマッピング
+      - "${POSTGRES_PORT}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data   # データ永続化ボリューム
-      - ./logs/postgresql:/var/log/postgresql # ログ出力先
+      - pgdata:/var/lib/postgresql/data
+      - ./logs/postgresql:/var/log/postgresql
     networks:
-      - default                        # デフォルトネットワーク
+      - default
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
   nginx:
-    image: nginx:latest              # 最新版 Nginx
-    container_name: myapp_nginx      # コンテナ名
+    image: nginx:latest
+    container_name: myapp_nginx
     env_file:
-      - .env                         # .env を読み込む
+      - .env                           # ルートの .env を読み込む
     environment:
-      - TZ=${TZ}                     # タイムゾーン設定
+      - TZ=${TZ}
     ports:
-      - "${NGINX_PORT}:80"          # ホスト:コンテナ ポート
+      - "${NGINX_PORT}:80"            # ホスト:コンテナ
     volumes:
-      - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template:ro  # テンプレート
-      - ./logs/nginx:/var/log/nginx    # ログ出力先
-    # 起動時に envsubst でポート変数を展開し、Nginx をフォアグラウンド実行
-    command: >
-      /bin/sh -c "envsubst '$$BACKEND_PORT' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
-    depends_on:
-      - backend                       # backend 起動後に起動
-    networks:
-      - default                       # デフォルトネットワーク
-    restart: always                  # 常に再起動
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/proxy_params:/etc/nginx/proxy_params:ro
+      - ./nginx/backend.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./logs/nginx:/var/log/nginx  # ログ出力先
 
-# 永続化用ボリューム定義
+    depends_on:
+      backend:
+        condition: service_healthy     # Backend がヘルシーになるまで待機
+    networks:
+      - default
+    restart: always
+
+# データ永続化用ボリューム
 volumes:
   pgdata:
     driver: local
 
-# デフォルトネットワーク定義
-# 環境変数 NETWORK_NAME で実際の名前を指定 (例: myapp_net)
+# 単一ネットワーク定義 (.env の NETWORK_NAME を使用)
 networks:
   default:
     name: ${NETWORK_NAME}

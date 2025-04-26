@@ -73,11 +73,22 @@ class HeaderMiddleware(BaseHTTPMiddleware):
         # self.trusted_proxies: List[str] = trusted_proxies or self._build_trusted_proxies()
         LOGGER.info(f"remove_headers={self.remove_headers}")
 
+    async def __call__(self, scope, receive, send):
+        # WebSocket スコープはミドルウェアを完全にバイパス
+        if scope.get("type") == "websocket":
+            return await self.app(scope, receive, send)
+        # それ以外は通常の BaseHTTPMiddleware 処理に渡す
+        return await super().__call__(scope, receive, send)
+
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        # WebSocket ハンドシェイク (Upgrade ヘッダー付き) の場合はミドルウェアをバイパス
+        if request.scope.get("type") == "websocket" or request.headers.get("upgrade", "").lower() == "websocket":
+            return await call_next(request)
+
         LOGGER.debug("[HeaderMiddleware] dispatch start")
 
         # (1) リバースプロキシの信頼性チェック
-        # proxy_ip: str = request.client.host
+        # proxy_ip = request.client.host
         # if proxy_ip not in self.trusted_proxies:
         #     LOGGER.warning(f"Untrusted proxy detected: {proxy_ip}")
         #     return Response(content="Unauthorized Proxy", status_code=403)
@@ -105,16 +116,12 @@ class HeaderMiddleware(BaseHTTPMiddleware):
         # (6) レスポンスボディ全体をチャンク収集（sync/async 両対応）
         chunks: List[bytes] = []
         body_iter = response.body_iterator
-
-        # 非同期イテレータ判定
         if isinstance(body_iter, AsyncIterable) or inspect.isasyncgen(body_iter) or hasattr(body_iter, "__aiter__"):
             async for chunk in body_iter:  # type: ignore[misc]
                 chunks.append(chunk)
-        # 同期イテレータ判定
         elif isinstance(body_iter, Iterable):
             for chunk in body_iter:
                 chunks.append(chunk)
-        # それ以外は空ボディ扱い
 
         body_bytes = b"".join(chunks)
         body_text = body_bytes.decode("utf-8", errors="ignore")

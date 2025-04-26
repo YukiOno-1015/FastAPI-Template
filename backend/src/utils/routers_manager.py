@@ -1,67 +1,95 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
 ルーター自動登録モジュール
-- DDD 構成または単一 src ディレクトリ配下をスキャン
-- subpkg/router.py を持つ各ディレクトリを自動で FastAPI に登録
+
+このモジュールは指定されたパッケージ以下を再帰的にスキャンし、
+`router` 属性を持つすべてのサブモジュールを FastAPI に自動登録します。
+
+機能:
+ 1. `pkgutil.walk_packages` による再帰スキャン
+ 2. 除外パッケージ・ディレクトリのフィルタリング
+ 3. モジュール単位で `router` 属性を検出
+ 4. HTTP ルート (`APIRoute`) と WebSocket ルート (`WebSocketRoute`) の分離登録
 """
 import importlib
 import logging
-import os
 import pkgutil
-from typing import Optional, Set
+from typing import List, Set
 
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
+from starlette.routing import WebSocketRoute
 
 # Uvicorn 用ロガー取得
 LOGGER = logging.getLogger("uvicorn.routers_manager")
 
-# 除外するディレクトリ一覧
-EXCLUDED_DIRS: Set[str] = {"__pycache__", "utils", "config", "core", "middlewares", "schemas", "models"}
+# スキャン対象から除外するパッケージ／ディレクトリ名
+EXCLUDED_DIRS: Set[str] = {
+    "__pycache__",
+    ".pytest_cache",
+    "alembic",
+    "utils",
+    "static",
+    "core",
+    "middlewares",
+    "schemas",
+    "models",
+    "commons",
+    "repositories",
+}
 
 
-def include_all_routers(app: FastAPI, root_dir: str = "./routers", root_pkg: Optional[str] = None) -> None:
+def include_all_routers(app: FastAPI, root_pkg: str = "routers") -> List[WebSocketRoute]:
     """
-    指定ディレクトリを走査し、router.py を含むサブパッケージを FastAPI に登録します。
+    指定パッケージ配下を再帰的にスキャンし、
+    `router` 属性を持つ各モジュールから HTTP と WebSocket のルートを登録します。
 
     Args:
         app (FastAPI): FastAPI アプリケーションインスタンス
-        root_dir (str): ルーター配置ディレクトリのパス (ファイルシステム上)
-        root_pkg (Optional[str]): import 時のパッケージプレフィックス (例: "app"), None ならプレフィックスなし
+        root_pkg (str): ルートパッケージ名（例: 'routers'）
     """
-    pkg_path = os.path.abspath(root_dir)
-    if not os.path.isdir(pkg_path):
-        LOGGER.error(f"ルーター検索ディレクトリが存在しません: {pkg_path}")
+    try:
+        pkg = importlib.import_module(root_pkg)
+    except ModuleNotFoundError:
+        LOGGER.error(f"ルートパッケージ '{root_pkg}' が見つかりません。")
         return
 
-    # ディレクトリ直下のサブディレクトリを走査
-    for finder, module_name, is_pkg in pkgutil.iter_modules([pkg_path]):
-        if not is_pkg or module_name in EXCLUDED_DIRS:
+    ws_routes = []
+    # 再帰的にサブモジュールを検索
+    for finder, module_name, is_pkg in pkgutil.walk_packages(pkg.__path__, prefix=f"{root_pkg}."):
+        # 除外ディレクトリがパスに含まれる場合はスキップ
+        if any(part in EXCLUDED_DIRS for part in module_name.split(".")):
+            LOGGER.debug(f"スキップ (除外対象): {module_name}")
             continue
 
-        module_path = os.path.join(pkg_path, module_name)
-        router_file = os.path.join(module_path, "router.py")
-        if not os.path.isfile(router_file):
-            LOGGER.debug(f"{module_name}/router.py が存在しません。スキップ。")
-            continue
-
-        # import 名の組み立て
-        if root_pkg:
-            import_name = f"{root_pkg}.{module_name}.router"
-        else:
-            import_name = f"{module_name}.router"
-
-        LOGGER.debug(import_name)
         try:
-            mod = importlib.import_module(import_name)
+            module = importlib.import_module(module_name)
         except Exception as e:
-            LOGGER.error(f"{import_name} のインポートエラー: {e}", exc_info=True)
+            LOGGER.error(f"モジュール {module_name} のインポートエラー: {e}", exc_info=True)
             continue
 
-        # router 属性を持っていれば登録
-        if hasattr(mod, "router"):
-            app.include_router(mod.router)
-            LOGGER.info(f"ルーター登録: {import_name}")
-        else:
-            LOGGER.warning(f"{import_name} に router 属性がありません。登録をスキップ。")
+        router = getattr(module, "router", None)
+        if not router:
+            continue
+
+        http_routes = []
+        # ルートを HTTP と WebSocket に分割
+        for route in router.routes:
+            if isinstance(route, APIRoute):
+                http_routes.append(route)
+            elif isinstance(route, WebSocketRoute):
+                # WebSocketRoute には methods 属性がないため空セットを設定
+                setattr(route, "methods", set())
+                ws_routes.append(route)
+            else:
+                http_routes.append(route)
+
+        # HTTP ルートのみを登録用に設定
+        router.routes = http_routes
+        try:
+            app.include_router(router)
+            LOGGER.info(f"HTTP ルーター登録: {module_name}.router")
+        except Exception as e:
+            LOGGER.error(f"HTTP ルーター登録失敗: {module_name}.router - {e}")
+
+    return ws_routes

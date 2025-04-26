@@ -13,9 +13,12 @@ CORS ミドルウェア設定モジュール
 
 import logging
 import os
+from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from commons.settings import settings
 
 # Uvicorn 用ロガーを取得
 LOGGER = logging.getLogger("uvicorn.middleware.cors")
@@ -25,7 +28,7 @@ class CORSConfig:
     """
     FastAPI アプリケーションに CORS ミドルウェアを追加するクラス。
 
-    コンストラクタ実行時に以下の環境変数を読み込み、設定を適用します。
+    Settings.cors_allow_* をカンマで分割してリスト化し、
       - CORS_ALLOW_ORIGINS
       - CORS_ALLOW_METHODS
       - CORS_ALLOW_HEADERS
@@ -33,19 +36,19 @@ class CORSConfig:
     """
 
     def __init__(self, app: FastAPI):
-        # 環境変数から設定値を取得（デフォルトは全許可）
-        origins = os.getenv("CORS_ALLOW_ORIGINS", "*")
-        methods = os.getenv("CORS_ALLOW_METHODS", "*")
-        headers = os.getenv("CORS_ALLOW_HEADERS", "*")
-        credentials = os.getenv("CORS_ALLOW_CREDENTIALS", "true").lower()
+        # カンマ区切りの文字列をリストに変換。"*" はワイルドカードとして扱う
+        def to_list(val: Optional[str]) -> list[str]:
+            if not val or val.strip() == "*":
+                return ["*"]
+            return [v.strip() for v in val.split(",") if v.strip()]
 
-        allow_origins = origins.split(",") if origins != "*" else ["*"]
-        allow_methods = methods.split(",") if methods != "*" else ["*"]
-        allow_headers = headers.split(",") if headers != "*" else ["*"]
-        allow_credentials = credentials == "true"
+        allow_origins = to_list(settings.cors_allow_origins)
+        allow_methods = to_list(settings.cors_allow_methods)
+        allow_headers = to_list(settings.cors_allow_headers)
+        allow_credentials = settings.cors_allow_credentials
 
         LOGGER.info(
-            "[CORSConfig] 設定を読み込み: "
+            f"[CORSConfig] settings から読み込み: "
             f"origins={allow_origins}, methods={allow_methods}, "
             f"headers={allow_headers}, credentials={allow_credentials}"
         )

@@ -6,7 +6,7 @@ import os
 from typing import Any, Dict
 
 import firebase_admin
-from fastapi import HTTPException, Security
+from fastapi import HTTPException, Security, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth, credentials
 from firebase_admin import exceptions as firebase_exceptions
@@ -47,7 +47,7 @@ def _initialize_firebase_app():
 
 async def verify_firebase_token(auth_credentials: HTTPAuthorizationCredentials = Security(security)) -> Dict[str, Any]:
     """
-    Bearer トークンを検証し、Firebase ユーザー情報を返却します。
+    HTTP(Bearer)トークンを検証し、Firebase ユーザー情報を返却します。
 
     Args:
         auth_credentials (HTTPAuthorizationCredentials): Authorization ヘッダーからの認証情報
@@ -85,3 +85,59 @@ async def verify_firebase_token(auth_credentials: HTTPAuthorizationCredentials =
     except Exception as e:
         LOGGER.error(f"Error verifying Firebase token: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal authentication error.")
+
+
+async def verify_firebase_token_ws(ws: WebSocket, token_param: str = "token") -> Dict[str, Any]:
+    """
+    WebSocket 接続用のトークン検証。
+    - クエリパラメータ(token)または Sec-WebSocket-Protocol からトークンを取得し検証します。
+
+    Args:
+        ws (WebSocket): WS コネクションオブジェクト
+        token_param (str): トークン取得用のキー名
+
+    Returns:
+        Dict[str, Any]: Firebase 認証済みユーザーデータ
+
+    Raises:
+        WebSocketDisconnect: トークンが存在しないか検証失敗時に切断します
+    """
+    # SDK 初期化
+    try:
+        _initialize_firebase_app()
+    except Exception as e:
+        LOGGER.error(f"WebSocket SDK init error: {e}", exc_info=True)
+        await ws.close(code=1011)
+        raise WebSocketDisconnect(code=1011)
+
+    # クエリパラメータからトークン取得
+    token = ws.query_params.get(token_param)
+    # Sec-WebSocket-Protocol ヘッダから取得
+    if not token:
+        subprotocols = ws.scope.get("subprotocols") or []
+        if len(subprotocols) >= 2 and subprotocols[0] == token_param:
+            token = subprotocols[1]
+
+    # トークン未提供時
+    if not token:
+        LOGGER.warning("WebSocket: token is missing.")
+        await ws.close(code=4401)
+        raise WebSocketDisconnect(code=4401)
+
+    # トークン検証
+    try:
+        decoded = auth.verify_id_token(token)
+        LOGGER.debug(f"WebSocket token verified for uid={decoded.get('uid')}")
+        return decoded
+    except firebase_exceptions.InvalidIdTokenError:
+        LOGGER.warning("WebSocket: Invalid ID token.")
+        await ws.close(code=4401)
+        raise WebSocketDisconnect(code=4401)
+    except firebase_exceptions.ExpiredIdTokenError:
+        LOGGER.warning("WebSocket: Expired ID token.")
+        await ws.close(code=4401)
+        raise WebSocketDisconnect(code=4401)
+    except Exception as e:
+        LOGGER.error(f"WebSocket: Error verifying token: {e}", exc_info=True)
+        await ws.close(code=1011)
+        raise WebSocketDisconnect(code=1011)

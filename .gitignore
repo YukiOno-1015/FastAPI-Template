@@ -674,6 +674,6 @@ logs/*/*.log*
 postgresql/*
 .vscode
 postgresql/
-.env.prod
+!.env
 
 firebase_service_account.json

@@ -12,7 +12,7 @@ from utils.protocol import (
 router = create_router(prefix="/users", tags=["users"])
 
 # Uvicorn 用ロガー取得
-LOGGER = logging.getLogger("uvicorn.routers")
+LOGGER = logging.getLogger("uvicorn.routers.http")
 
 
 @router.post("/")
